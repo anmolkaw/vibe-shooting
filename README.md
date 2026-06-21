@@ -2,6 +2,8 @@
 
 Vibe Shooting is a browser-based AR gesture shooting game. Your webcam stays local in the browser while MediaPipe Hands tracks your hand, Three.js renders futuristic target discs, and your index finger becomes the aim controller.
 
+Public repository: https://github.com/anmolkaw/vibe-shooting
+
 ## Features
 
 - Webcam-based AR play with a mirrored camera background
