@@ -4,6 +4,8 @@ Vibe Shooting is a browser-based AR gesture shooting game. Your webcam stays loc
 
 Public repository: https://github.com/anmolkaw/vibe-shooting
 
+Production deployment: https://vibe-shooting.vercel.app
+
 ## Features
 
 - Webcam-based AR play with a mirrored camera background
@@ -91,13 +93,11 @@ Use the project name:
 vibe-shooting
 ```
 
-The free production URL is expected to be similar to:
+The verified free production URL is:
 
 ```text
 https://vibe-shooting.vercel.app
 ```
-
-If that subdomain is unavailable, use the HTTPS URL Vercel provides.
 
 ## Custom Domain: vibeshooting.com
 
