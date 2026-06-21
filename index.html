@@ -1,0 +1,1886 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="description" content="Vibe Shooting is a browser-based AR gesture game. Aim with your index finger, pinch to shoot, and destroy flying futuristic discs.">
+  <meta name="theme-color" content="#05070c">
+  <meta property="og:title" content="Vibe Shooting - Gesture AR Game">
+  <meta property="og:description" content="Aim with your index finger, pinch to shoot, and destroy flying futuristic discs in your browser.">
+  <meta property="og:type" content="website">
+  <link rel="canonical" href="https://vibeshooting.com">
+  <title>Vibe Shooting — Gesture AR Game</title>
+  <style>
+    :root {
+      --bg: #05070c;
+      --panel: rgba(5, 13, 24, 0.68);
+      --line: rgba(111, 244, 255, 0.28);
+      --cyan: #65f7ff;
+      --green: #70ff9d;
+      --pink: #ff4dec;
+      --gold: #ffd56f;
+      --red: #ff5874;
+      --text: #effbff;
+      --muted: rgba(239, 251, 255, 0.7);
+      color-scheme: dark;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    html,
+    body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--text);
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      letter-spacing: 0;
+    }
+
+    button {
+      font: inherit;
+    }
+
+    #app {
+      position: fixed;
+      inset: 0;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at 50% 42%, rgba(25, 125, 150, 0.22), transparent 48%),
+        linear-gradient(180deg, #07101a, #03050a);
+      user-select: none;
+      touch-action: manipulation;
+    }
+
+    #stage {
+      position: absolute;
+      inset: 0;
+      overflow: hidden;
+      transform: translate3d(0, 0, 0);
+    }
+
+    #webcam {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      transform: scaleX(-1);
+      filter: saturate(1.16) contrast(1.35) brightness(0.72);
+      background: #02050a;
+    }
+
+    #cameraShade {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background:
+        radial-gradient(circle at 50% 43%, rgba(0, 0, 0, 0.08), rgba(0, 0, 0, 0.48) 63%, rgba(0, 0, 0, 0.86) 100%),
+        linear-gradient(180deg, rgba(0, 0, 0, 0.44), transparent 34%, rgba(0, 0, 0, 0.5)),
+        repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.025), rgba(255, 255, 255, 0.025) 1px, transparent 1px, transparent 4px);
+      z-index: 1;
+    }
+
+    #gameCanvas {
+      position: absolute;
+      inset: 0;
+      display: block;
+      width: 100%;
+      height: 100%;
+      z-index: 2;
+      pointer-events: none;
+    }
+
+    #floatingLayer,
+    #flashLayer {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+    }
+
+    #floatingLayer {
+      z-index: 5;
+      overflow: hidden;
+    }
+
+    #flashLayer {
+      z-index: 6;
+      opacity: 0;
+      background: radial-gradient(circle at 50% 50%, rgba(101, 247, 255, 0.2), transparent 44%);
+      mix-blend-mode: screen;
+    }
+
+    .float-text {
+      position: absolute;
+      left: 0;
+      top: 0;
+      min-width: max-content;
+      padding: 3px 9px;
+      border-radius: 999px;
+      transform: translate3d(-50%, -50%, 0);
+      font-size: 14px;
+      font-weight: 950;
+      text-transform: uppercase;
+      text-shadow: 0 0 14px currentColor;
+      will-change: transform, opacity;
+    }
+
+    .float-text.hit {
+      color: var(--green);
+      background: rgba(112, 255, 157, 0.12);
+      border: 1px solid rgba(112, 255, 157, 0.34);
+    }
+
+    .float-text.miss {
+      color: var(--red);
+      background: rgba(255, 88, 116, 0.12);
+      border: 1px solid rgba(255, 88, 116, 0.3);
+    }
+
+    .float-text.combo {
+      color: var(--gold);
+      background: rgba(255, 213, 111, 0.12);
+      border: 1px solid rgba(255, 213, 111, 0.35);
+    }
+
+    #hud {
+      position: absolute;
+      inset: 0;
+      z-index: 7;
+      display: grid;
+      grid-template-rows: auto 1fr auto;
+      gap: 14px;
+      padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(14px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+      pointer-events: none;
+      transition: opacity 180ms ease;
+    }
+
+    #hud.hidden {
+      opacity: 0;
+      visibility: hidden;
+    }
+
+    .hud-top {
+      display: grid;
+      grid-template-columns: minmax(180px, 1fr) minmax(360px, 620px) minmax(180px, 1fr);
+      gap: 12px;
+      align-items: start;
+    }
+
+    .brand h1,
+    .brand p {
+      margin: 0;
+    }
+
+    .brand h1 {
+      font-size: clamp(24px, 3.4vw, 46px);
+      line-height: 0.92;
+      font-weight: 950;
+      text-transform: uppercase;
+      text-shadow: 0 0 18px rgba(101, 247, 255, 0.7), 0 0 38px rgba(101, 247, 255, 0.22);
+    }
+
+    .brand p {
+      margin-top: 7px;
+      color: var(--muted);
+      font-size: 12px;
+      font-weight: 850;
+      text-transform: uppercase;
+    }
+
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 8px;
+    }
+
+    .stat,
+    .status-pill,
+    .control-button,
+    .instructions,
+    .trigger-chip {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: linear-gradient(180deg, rgba(6, 21, 34, 0.76), rgba(3, 8, 16, 0.54));
+      box-shadow: 0 0 28px rgba(101, 247, 255, 0.08), inset 0 0 18px rgba(101, 247, 255, 0.04);
+      backdrop-filter: blur(10px);
+    }
+
+    .stat {
+      min-width: 0;
+      padding: 10px 11px;
+    }
+
+    .stat span {
+      display: block;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .stat-label {
+      color: var(--muted);
+      font-size: 10px;
+      font-weight: 850;
+      text-transform: uppercase;
+    }
+
+    .stat-value {
+      margin-top: 4px;
+      font-size: clamp(18px, 2vw, 28px);
+      line-height: 1;
+      font-weight: 950;
+      text-shadow: 0 0 12px rgba(101, 247, 255, 0.45);
+    }
+
+    .right-hud {
+      justify-self: end;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 8px;
+    }
+
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      max-width: 100%;
+      padding: 9px 12px;
+      font-size: 11px;
+      font-weight: 950;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--gold);
+      box-shadow: 0 0 12px var(--gold);
+    }
+
+    .status-pill.tracking .status-dot {
+      background: var(--green);
+      box-shadow: 0 0 12px var(--green);
+    }
+
+    .status-pill.lost .status-dot,
+    .status-pill.error .status-dot {
+      background: var(--red);
+      box-shadow: 0 0 12px var(--red);
+    }
+
+    .status-pill.ready .status-dot,
+    .status-pill.locked .status-dot {
+      background: var(--cyan);
+      box-shadow: 0 0 12px var(--cyan);
+    }
+
+    .controls {
+      display: flex;
+      gap: 8px;
+      pointer-events: auto;
+    }
+
+    .control-button {
+      min-width: 82px;
+      padding: 9px 11px;
+      color: var(--text);
+      cursor: pointer;
+      font-size: 11px;
+      font-weight: 950;
+      text-transform: uppercase;
+    }
+
+    .control-button:hover {
+      border-color: rgba(101, 247, 255, 0.58);
+      box-shadow: 0 0 24px rgba(101, 247, 255, 0.16);
+    }
+
+    .hud-bottom {
+      display: flex;
+      align-items: end;
+      justify-content: space-between;
+      gap: 12px;
+    }
+
+    .instructions {
+      width: min(360px, calc(100vw - 32px));
+      padding: 12px 14px;
+    }
+
+    .instructions strong {
+      display: block;
+      margin-bottom: 8px;
+      color: var(--cyan);
+      font-size: 11px;
+      font-weight: 950;
+      text-transform: uppercase;
+    }
+
+    .instructions ul {
+      display: grid;
+      gap: 6px;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      font-size: 13px;
+      font-weight: 750;
+      line-height: 1.25;
+    }
+
+    .instructions li {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .instructions li::before {
+      content: "";
+      width: 6px;
+      height: 6px;
+      flex: 0 0 auto;
+      border-radius: 50%;
+      background: var(--cyan);
+      box-shadow: 0 0 10px var(--cyan);
+    }
+
+    .trigger-chip {
+      min-width: 132px;
+      padding: 11px 14px;
+      color: var(--cyan);
+      font-size: 12px;
+      font-weight: 950;
+      text-align: center;
+      text-transform: uppercase;
+      text-shadow: 0 0 12px rgba(101, 247, 255, 0.6);
+    }
+
+    .trigger-chip.hot {
+      color: var(--pink);
+      border-color: rgba(255, 77, 236, 0.5);
+      text-shadow: 0 0 14px rgba(255, 77, 236, 0.8);
+    }
+
+    .overlay {
+      position: absolute;
+      inset: 0;
+      z-index: 20;
+      display: grid;
+      place-items: center;
+      padding: 22px;
+      background:
+        radial-gradient(circle at 50% 44%, rgba(20, 110, 140, 0.24), transparent 42%),
+        rgba(2, 5, 10, 0.92);
+      backdrop-filter: blur(14px);
+      transition: opacity 220ms ease, visibility 220ms ease;
+    }
+
+    .overlay.hidden {
+      opacity: 0;
+      visibility: hidden;
+      pointer-events: none;
+    }
+
+    .card {
+      width: min(660px, 100%);
+      padding: clamp(24px, 5vw, 44px);
+      border: 1px solid rgba(101, 247, 255, 0.26);
+      border-radius: 8px;
+      background: linear-gradient(180deg, rgba(5, 21, 34, 0.92), rgba(2, 7, 14, 0.82));
+      box-shadow: 0 0 64px rgba(101, 247, 255, 0.14), inset 0 0 30px rgba(101, 247, 255, 0.04);
+      text-align: center;
+    }
+
+    .kicker,
+    .footer {
+      color: var(--cyan);
+      font-size: 12px;
+      font-weight: 950;
+      text-transform: uppercase;
+    }
+
+    .title {
+      margin: 10px 0 0;
+      font-size: clamp(44px, 9vw, 90px);
+      line-height: 0.88;
+      font-weight: 950;
+      text-transform: uppercase;
+      text-shadow: 0 0 22px rgba(101, 247, 255, 0.58), 0 0 54px rgba(255, 77, 236, 0.18);
+    }
+
+    .subtitle {
+      margin: 14px 0 0;
+      color: var(--text);
+      font-size: clamp(16px, 2.4vw, 22px);
+      font-weight: 850;
+      text-transform: uppercase;
+    }
+
+    .copy {
+      margin: 18px auto 0;
+      max-width: 560px;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.5;
+    }
+
+    .landing-list {
+      display: grid;
+      gap: 8px;
+      margin: 24px auto 0;
+      padding: 0;
+      max-width: 440px;
+      list-style: none;
+      text-align: left;
+      color: var(--text);
+      font-size: 14px;
+      font-weight: 760;
+    }
+
+    .landing-list li {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+    }
+
+    .landing-list li::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--cyan);
+      box-shadow: 0 0 12px var(--cyan);
+      flex: 0 0 auto;
+    }
+
+    .primary-button,
+    .retry-button {
+      margin-top: 26px;
+      padding: 13px 20px;
+      border: 1px solid rgba(101, 247, 255, 0.5);
+      border-radius: 999px;
+      background: linear-gradient(90deg, rgba(101, 247, 255, 0.18), rgba(255, 77, 236, 0.16));
+      color: var(--text);
+      box-shadow: 0 0 28px rgba(101, 247, 255, 0.16);
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 950;
+      text-transform: uppercase;
+    }
+
+    .primary-button:focus-visible,
+    .retry-button:focus-visible,
+    .control-button:focus-visible {
+      outline: 2px solid var(--cyan);
+      outline-offset: 3px;
+    }
+
+    .notice {
+      margin-top: 18px;
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.45;
+    }
+
+    .footer {
+      margin-top: 24px;
+      color: rgba(239, 251, 255, 0.56);
+      text-transform: none;
+    }
+
+    .loading-bar {
+      position: relative;
+      height: 8px;
+      margin: 26px auto 14px;
+      max-width: 460px;
+      overflow: hidden;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.08);
+    }
+
+    .loading-bar::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      width: 42%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, transparent, var(--cyan), var(--pink), transparent);
+      box-shadow: 0 0 18px rgba(101, 247, 255, 0.7);
+      animation: loading 1.1s ease-in-out infinite;
+    }
+
+    @keyframes loading {
+      from {
+        transform: translateX(-120%);
+      }
+      to {
+        transform: translateX(260%);
+      }
+    }
+
+    @media (max-width: 820px) {
+      #hud {
+        padding: 12px;
+      }
+
+      .hud-top {
+        grid-template-columns: 1fr;
+      }
+
+      .right-hud {
+        align-items: flex-start;
+      }
+
+      .stats {
+        grid-template-columns: repeat(5, minmax(58px, 1fr));
+      }
+
+      .stat {
+        padding: 8px 7px;
+      }
+
+      .stat-value {
+        font-size: 18px;
+      }
+
+      .hud-bottom {
+        flex-direction: column;
+        align-items: stretch;
+      }
+
+      .instructions {
+        width: 100%;
+      }
+
+      .trigger-chip {
+        align-self: flex-end;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main id="app">
+    <section id="stage" aria-hidden="true">
+      <video id="webcam" autoplay muted playsinline></video>
+      <div id="cameraShade"></div>
+      <canvas id="gameCanvas"></canvas>
+    </section>
+
+    <div id="floatingLayer" aria-hidden="true"></div>
+    <div id="flashLayer" aria-hidden="true"></div>
+
+    <section id="hud" class="hidden" aria-label="Vibe Shooting HUD">
+      <div class="hud-top">
+        <div class="brand">
+          <h1>Vibe Shooting</h1>
+          <p>Your hand is the controller</p>
+        </div>
+
+        <div class="stats" aria-live="polite">
+          <div class="stat"><span class="stat-label">Score</span><span id="scoreValue" class="stat-value">0</span></div>
+          <div class="stat"><span class="stat-label">Accuracy</span><span id="accuracyValue" class="stat-value">100%</span></div>
+          <div class="stat"><span class="stat-label">Combo</span><span id="comboValue" class="stat-value">x0</span></div>
+          <div class="stat"><span class="stat-label">Best</span><span id="bestValue" class="stat-value">0</span></div>
+          <div class="stat"><span class="stat-label">Shots</span><span id="shotsValue" class="stat-value">0</span></div>
+        </div>
+
+        <div class="right-hud">
+          <div id="statusPill" class="status-pill">
+            <span class="status-dot"></span>
+            <span id="statusText">MODEL LOADING</span>
+          </div>
+          <div class="controls">
+            <button id="pauseButton" class="control-button" type="button">Pause</button>
+            <button id="restartButton" class="control-button" type="button">Restart</button>
+          </div>
+        </div>
+      </div>
+
+      <div></div>
+
+      <div class="hud-bottom">
+        <div class="instructions">
+          <strong>Gesture Controls</strong>
+          <ul>
+            <li>Point with your index finger to aim</li>
+            <li>Bring your thumb close to your index finger to fire</li>
+            <li>Best combo this run: <span id="bestComboValue">x0</span></li>
+          </ul>
+        </div>
+        <div id="triggerChip" class="trigger-chip">Ready</div>
+      </div>
+    </section>
+
+    <section id="landingOverlay" class="overlay">
+      <div class="card">
+        <div class="kicker">Browser AR arcade</div>
+        <h2 class="title">Vibe Shooting</h2>
+        <p class="subtitle">Your hand is the controller</p>
+        <ul class="landing-list">
+          <li>Point with your index finger to aim</li>
+          <li>Bring your thumb close to your index finger to fire</li>
+        </ul>
+        <button id="startButton" class="primary-button" type="button">Enable Camera &amp; Start</button>
+        <p class="notice">Camera processing happens locally in your browser. No video is recorded or uploaded.</p>
+        <p class="notice">Best experienced on desktop Chrome with good lighting.</p>
+        <p class="footer">v0.1 · Built by Anmol</p>
+      </div>
+    </section>
+
+    <section id="loadingOverlay" class="overlay hidden" role="status" aria-live="polite">
+      <div class="card">
+        <div class="kicker">Initializing range</div>
+        <h2 class="subtitle">Vibe Shooting</h2>
+        <div class="loading-bar"></div>
+        <p id="loadingStatus" class="copy">REQUESTING CAMERA ACCESS...</p>
+      </div>
+    </section>
+
+    <section id="errorOverlay" class="overlay hidden" role="alert">
+      <div class="card">
+        <div class="kicker">System check failed</div>
+        <h2 id="errorTitle" class="subtitle">Camera Error</h2>
+        <p id="errorMessage" class="copy">Camera permission is required to play Vibe Shooting.</p>
+        <button id="retryButton" class="retry-button" type="button">Retry</button>
+      </div>
+    </section>
+  </main>
+
+  <script src="https://unpkg.com/three@0.160.0/build/three.min.js"></script>
+  <script src="https://unpkg.com/@mediapipe/camera_utils@0.4.1646424915/camera_utils.js" onerror="console.warn('Optional MediaPipe camera_utils package is unavailable at the requested 0.4.1646424915 pin; continuing without the Camera helper.')"></script>
+  <script src="https://unpkg.com/@mediapipe/control_utils@0.4.1646424915/control_utils.js" onerror="console.warn('Optional MediaPipe control_utils package is unavailable at the requested 0.4.1646424915 pin; continuing without Control helpers.')"></script>
+  <script src="https://unpkg.com/@mediapipe/drawing_utils@0.4.1646424915/drawing_utils.js" onerror="console.warn('Optional MediaPipe drawing_utils package is unavailable at the requested 0.4.1646424915 pin; continuing without Drawing helpers.')"></script>
+  <script src="https://unpkg.com/@mediapipe/hands@0.4.1646424915/hands.js"></script>
+
+  <script>
+    (() => {
+      "use strict";
+
+      const MEDIAPIPE_VERSION = "0.4.1646424915";
+      const HANDS_ASSET_ROOT = `https://unpkg.com/@mediapipe/hands@${MEDIAPIPE_VERSION}/`;
+      const TARGET_DISC_COUNT = 4;
+      const HAND_INTERVAL_MS = 50;
+      const HAND_COOLDOWN_MS = 260;
+      const MODEL_TIMEOUT_MS = 20000;
+      const TRIGGER_PRESS = 0.095;
+      const TRIGGER_RELEASE = 0.135;
+      const SHOT_COOLDOWN_MS = 245;
+      const MAX_PARTICLES = 240;
+      const MAX_TEXT = 26;
+      const BEST_SCORE_KEY = "vibe-shooting-best-score";
+
+      const dom = {
+        stage: document.getElementById("stage"),
+        video: document.getElementById("webcam"),
+        canvas: document.getElementById("gameCanvas"),
+        hud: document.getElementById("hud"),
+        landing: document.getElementById("landingOverlay"),
+        loading: document.getElementById("loadingOverlay"),
+        error: document.getElementById("errorOverlay"),
+        start: document.getElementById("startButton"),
+        retry: document.getElementById("retryButton"),
+        pause: document.getElementById("pauseButton"),
+        restart: document.getElementById("restartButton"),
+        loadingStatus: document.getElementById("loadingStatus"),
+        errorTitle: document.getElementById("errorTitle"),
+        errorMessage: document.getElementById("errorMessage"),
+        statusPill: document.getElementById("statusPill"),
+        statusText: document.getElementById("statusText"),
+        score: document.getElementById("scoreValue"),
+        accuracy: document.getElementById("accuracyValue"),
+        combo: document.getElementById("comboValue"),
+        best: document.getElementById("bestValue"),
+        shots: document.getElementById("shotsValue"),
+        bestCombo: document.getElementById("bestComboValue"),
+        trigger: document.getElementById("triggerChip"),
+        floating: document.getElementById("floatingLayer"),
+        flash: document.getElementById("flashLayer")
+      };
+
+      const state = {
+        ready: false,
+        running: false,
+        paused: false,
+        score: 0,
+        shots: 0,
+        hits: 0,
+        escaped: 0,
+        combo: 0,
+        bestCombo: 0,
+        bestScore: Number(localStorage.getItem(BEST_SCORE_KEY) || 0),
+        lastShotTime: 0,
+        handTracked: false,
+        aiming: false,
+        triggerClosed: false,
+        gestureConfidence: 0,
+        rawAim: { x: 0.5, y: 0.5 },
+        smoothAim: { x: 0.5, y: 0.5 },
+        assistedAim: { x: 0.5, y: 0.5 },
+        lockTargetId: null,
+        gestureHint: "READY"
+      };
+
+      const boot = {
+        userStarted: false,
+        cameraReady: false,
+        videoReady: false,
+        threeReady: false,
+        handsReady: false,
+        assetsLoaded: false,
+        firstResults: false
+      };
+
+      const runtime = {
+        stream: null,
+        hands: null,
+        initializing: false,
+        animationStarted: false,
+        firstResultsResolver: null,
+        firstResultsPromise: null,
+        lastFrame: performance.now(),
+        lastHandRun: 0,
+        handInFlight: false,
+        handCooldownUntil: 0,
+        aimConfidence: 0,
+        displayScore: 0,
+        displayAccuracy: 100,
+        displayCombo: 0,
+        displayBest: state.bestScore,
+        shake: 0,
+        flash: 0,
+        laserFlash: 0,
+        crosshairKick: 0,
+        resizeQueued: false
+      };
+
+      const three = {
+        scene: null,
+        camera: null,
+        renderer: null,
+        geometries: {},
+        crosshair: null,
+        laserCore: null,
+        laserGlow: null,
+        laserOrigin: null,
+        ambient: null
+      };
+
+      const discs = [];
+      const particles = [];
+      const texts = [];
+
+      const audio = {
+        ctx: null,
+        enabled: false,
+        available: Boolean(window.AudioContext || window.webkitAudioContext),
+        noise: null
+      };
+
+      const clamp = (value, min, max) => Math.min(max, Math.max(min, value));
+      const lerp = (a, b, t) => a + (b - a) * t;
+      const damp = (a, b, k, dt) => lerp(a, b, 1 - Math.exp(-k * dt));
+      const rand = (min, max) => min + Math.random() * (max - min);
+      const dist2 = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+      const sleep = (ms) => new Promise((resolve) => window.setTimeout(resolve, ms));
+
+      function showOverlay(which) {
+        dom.landing.classList.toggle("hidden", which !== "landing");
+        dom.loading.classList.toggle("hidden", which !== "loading");
+        dom.error.classList.toggle("hidden", which !== "error");
+      }
+
+      function showLoadingStatus(message) {
+        dom.loadingStatus.textContent = message;
+      }
+
+      function setStatus(label) {
+        dom.statusText.textContent = label;
+        dom.statusPill.classList.remove("tracking", "lost", "ready", "error", "locked");
+        if (label === "TRACKING HAND") dom.statusPill.classList.add("tracking");
+        else if (label === "HAND LOST") dom.statusPill.classList.add("lost");
+        else if (label === "CAMERA ERROR") dom.statusPill.classList.add("error");
+        else if (label === "LOCKED") dom.statusPill.classList.add("locked");
+        else if (label === "CAMERA READY") dom.statusPill.classList.add("ready");
+      }
+
+      function showFatalError(title, message) {
+        state.ready = false;
+        state.running = false;
+        state.paused = false;
+        setStatus(title.toLowerCase().includes("camera") ? "CAMERA ERROR" : "HAND LOST");
+        dom.errorTitle.textContent = title;
+        dom.errorMessage.textContent = message;
+        dom.hud.classList.add("hidden");
+        showOverlay("error");
+      }
+
+      function hideFatalError() {
+        dom.error.classList.add("hidden");
+      }
+
+      function resetBoot() {
+        Object.keys(boot).forEach((key) => {
+          boot[key] = false;
+        });
+        boot.userStarted = true;
+        runtime.firstResultsPromise = new Promise((resolve) => {
+          runtime.firstResultsResolver = resolve;
+        });
+      }
+
+      function resetHandState() {
+        state.handTracked = false;
+        state.aiming = false;
+        state.triggerClosed = false;
+        state.gestureConfidence = 0;
+        state.gestureHint = "READY";
+        runtime.aimConfidence = 0;
+      }
+
+      function initAudio() {
+        if (audio.enabled || !audio.available) return;
+        try {
+          const AudioCtor = window.AudioContext || window.webkitAudioContext;
+          audio.ctx = new AudioCtor();
+          const length = Math.floor(audio.ctx.sampleRate * 0.24);
+          audio.noise = audio.ctx.createBuffer(1, length, audio.ctx.sampleRate);
+          const data = audio.noise.getChannelData(0);
+          for (let i = 0; i < data.length; i += 1) data[i] = Math.random() * 2 - 1;
+          if (audio.ctx.state === "suspended") {
+            audio.ctx.resume().catch((error) => console.warn("[Vibe Shooting] Audio resume blocked:", error));
+          }
+          audio.enabled = true;
+        } catch (error) {
+          console.warn("[Vibe Shooting] Web Audio unavailable:", error);
+          audio.available = false;
+        }
+      }
+
+      async function initApp() {
+        if (runtime.initializing) return;
+        runtime.initializing = true;
+        initAudio();
+        resetBoot();
+        resetGameStats();
+        clearWorld();
+        hideFatalError();
+        dom.hud.classList.add("hidden");
+        showOverlay("loading");
+
+        try {
+          assertPlatform();
+          showLoadingStatus("REQUESTING CAMERA ACCESS...");
+          await initCamera();
+          showLoadingStatus("CALIBRATING AR SYSTEM...");
+          initThree();
+          startRenderLoop();
+          showLoadingStatus("LOADING HAND-TRACKING MODEL...");
+          await initHands();
+          showLoadingStatus("PREPARING TARGET RANGE...");
+          await waitForFirstHandsResult();
+          showLoadingStatus("READY");
+          await sleep(260);
+          startGame();
+        } catch (error) {
+          console.warn("[Vibe Shooting] Initialization failed:", error);
+          const title = error && error.title ? error.title : "Initialization Error";
+          const message = error && error.message ? error.message : "Vibe Shooting could not initialize. Please retry.";
+          stopCamera();
+          showFatalError(title, message);
+        } finally {
+          runtime.initializing = false;
+        }
+      }
+
+      function assertPlatform() {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          throw { title: "Camera Not Supported", message: "This browser does not expose navigator.mediaDevices. Use a modern Chromium browser with camera support." };
+        }
+        if (!window.THREE) {
+          throw { title: "WebGL Library Missing", message: "Three.js did not load. Check your connection and retry." };
+        }
+        const testCanvas = document.createElement("canvas");
+        if (!testCanvas.getContext("webgl") && !testCanvas.getContext("webgl2")) {
+          throw { title: "WebGL Not Available", message: "Vibe Shooting needs WebGL for the transparent AR scene." };
+        }
+        if (!window.Hands) {
+          throw { title: "MediaPipe Load Failure", message: "MediaPipe Hands did not load from unpkg. Check your connection and retry." };
+        }
+      }
+
+      async function initCamera() {
+        try {
+          runtime.stream = await navigator.mediaDevices.getUserMedia({
+            audio: false,
+            video: {
+              facingMode: "user",
+              width: { ideal: 1280 },
+              height: { ideal: 720 },
+              frameRate: { ideal: 30, max: 60 }
+            }
+          });
+        } catch (error) {
+          if (error && error.name === "NotAllowedError") {
+            throw { title: "Camera Permission Denied", message: "Camera permission is required to play. Press Retry and allow camera access." };
+          }
+          if (error && (error.name === "NotFoundError" || error.name === "DevicesNotFoundError")) {
+            throw { title: "No Webcam Available", message: "No webcam was found. Connect a camera and press Retry." };
+          }
+          throw { title: "Camera Stream Error", message: "The camera stream could not be initialized. Close other camera apps and retry." };
+        }
+
+        boot.cameraReady = true;
+        setStatus("CAMERA READY");
+        dom.video.srcObject = runtime.stream;
+
+        await new Promise((resolve, reject) => {
+          let done = false;
+          const timeout = window.setTimeout(() => {
+            if (!done) {
+              done = true;
+              reject({ title: "Camera Stream Error", message: "The camera started, but video metadata was not received." });
+            }
+          }, 8000);
+          const finish = () => {
+            if (done) return;
+            done = true;
+            window.clearTimeout(timeout);
+            boot.videoReady = true;
+            resolve();
+          };
+          if (dom.video.readyState >= 1 && dom.video.videoWidth > 0) finish();
+          else dom.video.addEventListener("loadedmetadata", finish, { once: true });
+        });
+
+        try {
+          await dom.video.play();
+        } catch (error) {
+          throw { title: "Camera Stream Error", message: "The camera stream could not begin playback. Press Retry." };
+        }
+      }
+
+      function stopCamera() {
+        if (runtime.stream) {
+          runtime.stream.getTracks().forEach((track) => track.stop());
+          runtime.stream = null;
+        }
+        dom.video.srcObject = null;
+      }
+
+      function initThree() {
+        if (three.renderer) {
+          boot.threeReady = true;
+          onResize();
+          return;
+        }
+
+        three.scene = new THREE.Scene();
+        three.camera = new THREE.OrthographicCamera(0, window.innerWidth, 0, window.innerHeight, -1000, 1000);
+        three.camera.position.set(0, 0, 10);
+        three.renderer = new THREE.WebGLRenderer({
+          canvas: dom.canvas,
+          alpha: true,
+          antialias: true,
+          premultipliedAlpha: false,
+          powerPreference: "high-performance"
+        });
+        three.renderer.setClearColor(0x000000, 0);
+        three.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+        three.renderer.setSize(window.innerWidth, window.innerHeight, false);
+
+        three.geometries.beam = new THREE.PlaneGeometry(1, 1);
+        three.geometries.dot = new THREE.CircleGeometry(1, 16);
+        three.geometries.tri = new THREE.CircleGeometry(1, 3);
+        three.geometries.quad = new THREE.PlaneGeometry(1, 1);
+
+        createLaser();
+        createCrosshair();
+        createAmbient();
+        window.addEventListener("resize", () => {
+          runtime.resizeQueued = true;
+        }, { passive: true });
+        boot.threeReady = true;
+        onResize();
+      }
+
+      function onResize() {
+        if (!three.renderer || !three.camera) return;
+        const w = window.innerWidth;
+        const h = window.innerHeight;
+        three.camera.left = 0;
+        three.camera.right = w;
+        three.camera.top = 0;
+        three.camera.bottom = h;
+        three.camera.updateProjectionMatrix();
+        three.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+        three.renderer.setSize(w, h, false);
+        if (three.ambient) three.ambient.position.set(w / 2, h / 2, -60);
+      }
+
+      function material(color, opacity, blending = THREE.AdditiveBlending) {
+        return new THREE.MeshBasicMaterial({
+          color,
+          transparent: true,
+          opacity,
+          blending,
+          depthTest: false,
+          depthWrite: false,
+          side: THREE.DoubleSide
+        });
+      }
+
+      function lineMaterial(color, opacity) {
+        return new THREE.LineBasicMaterial({
+          color,
+          transparent: true,
+          opacity,
+          blending: THREE.AdditiveBlending,
+          depthTest: false,
+          depthWrite: false
+        });
+      }
+
+      function createLaser() {
+        three.laserGlow = new THREE.Mesh(three.geometries.beam, material(0x65f7ff, 0.16));
+        three.laserCore = new THREE.Mesh(three.geometries.beam, material(0xeffbff, 0.54));
+        three.laserOrigin = new THREE.Mesh(new THREE.CircleGeometry(1, 32), material(0x65f7ff, 0.22));
+        three.laserGlow.renderOrder = 2;
+        three.laserCore.renderOrder = 3;
+        three.laserOrigin.renderOrder = 3;
+        three.scene.add(three.laserGlow, three.laserCore, three.laserOrigin);
+      }
+
+      function createCrosshair() {
+        const group = new THREE.Group();
+        group.renderOrder = 10;
+        const cyan = material(0x65f7ff, 0.94);
+        const pink = material(0xff4dec, 0.5);
+        const lock = material(0x70ff9d, 0);
+        const backing = material(0x000712, 0.72, THREE.NormalBlending);
+        group.userData.halo = new THREE.Mesh(new THREE.CircleGeometry(48, 72), material(0x65f7ff, 0.12));
+        group.userData.shadow = new THREE.Mesh(new THREE.TorusGeometry(29, 4.2, 12, 96), backing);
+        group.userData.outer = new THREE.Mesh(new THREE.TorusGeometry(29, 2.3, 12, 96), pink);
+        group.userData.inner = new THREE.Mesh(new THREE.TorusGeometry(14, 2.2, 12, 72), cyan);
+        group.userData.lock = new THREE.Mesh(new THREE.TorusGeometry(40, 2.2, 12, 96), lock);
+        group.userData.dotShadow = new THREE.Mesh(new THREE.CircleGeometry(6.5, 24), material(0x000712, 0.82, THREE.NormalBlending));
+        group.userData.dot = new THREE.Mesh(new THREE.CircleGeometry(3.8, 24), material(0xeffbff, 0.98));
+        group.userData.ticks = [];
+        group.userData.tickBacks = [];
+        const tickGeo = new THREE.PlaneGeometry(22, 4.7);
+        const backGeo = new THREE.PlaneGeometry(28, 8);
+        for (let i = 0; i < 4; i += 1) {
+          const angle = i * Math.PI * 0.5;
+          const back = new THREE.Mesh(backGeo, material(0x000712, 0.68, THREE.NormalBlending));
+          const tick = new THREE.Mesh(tickGeo, cyan.clone());
+          back.position.set(Math.cos(angle) * 48, Math.sin(angle) * 48, -0.2);
+          tick.position.set(Math.cos(angle) * 48, Math.sin(angle) * 48, 0.1);
+          back.rotation.z = angle;
+          tick.rotation.z = angle;
+          back.userData.base = angle;
+          tick.userData.base = angle;
+          group.userData.tickBacks.push(back);
+          group.userData.ticks.push(tick);
+          group.add(back, tick);
+        }
+        group.add(group.userData.halo, group.userData.shadow, group.userData.outer, group.userData.inner, group.userData.lock, group.userData.dotShadow, group.userData.dot);
+        three.crosshair = group;
+        three.scene.add(group);
+      }
+
+      function circleGeometry(radius, segments) {
+        const pts = [];
+        for (let i = 0; i < segments; i += 1) {
+          const a = (i / segments) * Math.PI * 2;
+          pts.push(new THREE.Vector3(Math.cos(a) * radius, Math.sin(a) * radius, 0));
+        }
+        return new THREE.BufferGeometry().setFromPoints(pts);
+      }
+
+      function createAmbient() {
+        three.ambient = new THREE.Group();
+        three.ambient.renderOrder = 0;
+        const m = lineMaterial(0x65f7ff, 0.07);
+        for (let i = 0; i < 8; i += 1) {
+          const ring = new THREE.LineLoop(circleGeometry(120 + i * 70, 128), m);
+          ring.scale.y = 0.42;
+          three.ambient.add(ring);
+        }
+        three.scene.add(three.ambient);
+      }
+
+      async function initHands() {
+        if (runtime.hands && typeof runtime.hands.close === "function") {
+          try {
+            await runtime.hands.close();
+          } catch (error) {
+            console.warn("[Vibe Shooting] Previous MediaPipe instance did not close cleanly:", error);
+          }
+        }
+        runtime.hands = new Hands({
+          locateFile: (file) => `${HANDS_ASSET_ROOT}${file}`
+        });
+        runtime.hands.setOptions({
+          maxNumHands: 1,
+          modelComplexity: 1,
+          minDetectionConfidence: 0.5,
+          minTrackingConfidence: 0.5,
+          selfieMode: false
+        });
+        runtime.hands.onResults(onHandsResults);
+        if (typeof runtime.hands.initialize === "function") await runtime.hands.initialize();
+        boot.handsReady = true;
+      }
+
+      async function waitForFirstHandsResult() {
+        const start = performance.now();
+        while (!boot.firstResults && performance.now() - start < MODEL_TIMEOUT_MS) {
+          await runHandDetection(performance.now(), true);
+          if (boot.firstResults) break;
+          await sleep(70);
+        }
+        if (!boot.firstResults) {
+          throw { title: "MediaPipe Load Timeout", message: "Hand tracking did not finish loading within 20 seconds. Check your network connection and retry." };
+        }
+        await runtime.firstResultsPromise;
+      }
+
+      function startGame() {
+        const ok = boot.cameraReady && boot.videoReady && boot.threeReady && boot.handsReady && boot.assetsLoaded && boot.firstResults;
+        if (!ok) {
+          showFatalError("MediaPipe Load Failure", "The AR system was not fully ready. Press Retry to initialize again.");
+          return;
+        }
+        state.ready = true;
+        state.running = true;
+        state.paused = false;
+        dom.hud.classList.remove("hidden");
+        showOverlay("none");
+        setStatus(state.handTracked ? "TRACKING HAND" : "HAND LOST");
+        ensureDiscCount();
+      }
+
+      function startRenderLoop() {
+        if (runtime.animationStarted) return;
+        runtime.animationStarted = true;
+        runtime.lastFrame = performance.now();
+        requestAnimationFrame(animate);
+      }
+
+      function animate(now) {
+        requestAnimationFrame(animate);
+        const dt = Math.min(0.05, Math.max(0.001, (now - runtime.lastFrame) / 1000));
+        runtime.lastFrame = now;
+        if (runtime.resizeQueued) {
+          runtime.resizeQueued = false;
+          onResize();
+        }
+        runHandDetection(now).catch((error) => console.warn("[Vibe Shooting] Protected hand loop failure:", error));
+        updateAimAssist(dt);
+        updateLaser(dt, now);
+        updateCrosshair(dt, now);
+        updateDiscs(dt, now);
+        updateParticles(dt);
+        updateTexts(dt);
+        updateHud(dt);
+        updateScreen(dt);
+        if (three.renderer && three.scene && three.camera) three.renderer.render(three.scene, three.camera);
+      }
+
+      async function runHandDetection(now = performance.now(), force = false) {
+        try {
+          if (!boot.videoReady || !boot.handsReady || !runtime.hands) return;
+          if (runtime.handInFlight) return;
+          if (!force && now < runtime.handCooldownUntil) return;
+          if (!force && now - runtime.lastHandRun < HAND_INTERVAL_MS) return;
+          if (!dom.video.videoWidth || dom.video.readyState < 2) return;
+          runtime.lastHandRun = now;
+          runtime.handInFlight = true;
+          try {
+            await runtime.hands.send({ image: dom.video });
+          } catch (error) {
+            console.warn("[Vibe Shooting] MediaPipe detection skipped safely:", error);
+            resetHandState();
+            runtime.handCooldownUntil = performance.now() + HAND_COOLDOWN_MS;
+            if (state.ready) setStatus("HAND LOST");
+          } finally {
+            runtime.handInFlight = false;
+          }
+        } catch (error) {
+          runtime.handInFlight = false;
+          console.warn("[Vibe Shooting] Hand detection wrapper caught an error:", error);
+        }
+      }
+
+      function onHandsResults(results) {
+        try {
+          boot.assetsLoaded = true;
+          const landmarks = results && results.multiHandLandmarks && results.multiHandLandmarks[0];
+          const handedness = results && results.multiHandedness && results.multiHandedness[0];
+          const confidence = handedness && typeof handedness.score === "number" ? handedness.score : 1;
+          if (landmarks && landmarks.length >= 21 && confidence > 0.45) {
+            state.handTracked = true;
+            updateGestureState(landmarks);
+            if (state.ready) setStatus(state.lockTargetId ? "LOCKED" : "TRACKING HAND");
+          } else {
+            resetHandState();
+            if (state.ready) setStatus("HAND LOST");
+          }
+        } catch (error) {
+          console.warn("[Vibe Shooting] Results callback ignored safely:", error);
+          resetHandState();
+          if (state.ready) setStatus("HAND LOST");
+        } finally {
+          if (!boot.firstResults) {
+            boot.firstResults = true;
+            if (runtime.firstResultsResolver) runtime.firstResultsResolver();
+          }
+        }
+      }
+
+      function landmarkDistance(a, b) {
+        return Math.hypot(a.x - b.x, a.y - b.y);
+      }
+
+      function fingerStraight(mcp, pip, tip) {
+        const direct = landmarkDistance(mcp, tip);
+        const path = landmarkDistance(mcp, pip) + landmarkDistance(pip, tip);
+        return direct / Math.max(0.0001, path);
+      }
+
+      function landmarkToViewport(point) {
+        const vw = Math.max(1, window.innerWidth);
+        const vh = Math.max(1, window.innerHeight);
+        const videoW = dom.video.videoWidth || vw;
+        const videoH = dom.video.videoHeight || vh;
+        const scale = Math.max(vw / videoW, vh / videoH);
+        const renderedW = videoW * scale;
+        const renderedH = videoH * scale;
+        const offsetX = (vw - renderedW) * 0.5;
+        const offsetY = (vh - renderedH) * 0.5;
+        return {
+          x: clamp((offsetX + (1 - point.x) * renderedW) / vw, 0.01, 0.99),
+          y: clamp((offsetY + point.y * renderedH) / vh, 0.01, 0.99)
+        };
+      }
+
+      function updateGestureState(lm) {
+        const wrist = lm[0];
+        const thumbTip = lm[4];
+        const indexMcp = lm[5];
+        const indexPip = lm[6];
+        const indexTip = lm[8];
+        const middleMcp = lm[9];
+        const middlePip = lm[10];
+        const middleTip = lm[12];
+        const ringMcp = lm[13];
+        const ringPip = lm[14];
+        const ringTip = lm[16];
+        const pinkyMcp = lm[17];
+        const pinkyPip = lm[18];
+        const pinkyTip = lm[20];
+
+        const palm = Math.max(0.04, landmarkDistance(wrist, middleMcp));
+        const indexReach = landmarkDistance(wrist, indexTip);
+        const reachRatio = indexReach / palm;
+        const straight = fingerStraight(indexMcp, indexPip, indexTip);
+        const indexExtended = straight > 0.72 && indexReach > landmarkDistance(wrist, indexPip) * 1.02 && reachRatio > 1.24;
+
+        const curled = [
+          isFingerCurled(middleMcp, middlePip, middleTip, wrist, indexReach, palm),
+          isFingerCurled(ringMcp, ringPip, ringTip, wrist, indexReach, palm),
+          isFingerCurled(pinkyMcp, pinkyPip, pinkyTip, wrist, indexReach, palm)
+        ].filter(Boolean).length;
+
+        const longestOther = Math.max(landmarkDistance(wrist, middleTip), landmarkDistance(wrist, ringTip), landmarkDistance(wrist, pinkyTip));
+        const dominance = (indexReach - longestOther) / palm;
+        const confidence = clamp(
+          clamp((straight - 0.66) / 0.26, 0, 1) * 0.46 +
+          clamp((reachRatio - 1.16) / 0.64, 0, 1) * 0.26 +
+          (curled / 3) * 0.2 +
+          clamp((dominance + 0.1) / 0.48, 0, 1) * 0.08,
+          0,
+          1
+        );
+
+        runtime.aimConfidence = lerp(runtime.aimConfidence, confidence, confidence > runtime.aimConfidence ? 0.62 : 0.34);
+        state.gestureConfidence = runtime.aimConfidence;
+        const mapped = landmarkToViewport(indexTip);
+        state.rawAim.x = mapped.x;
+        state.rawAim.y = mapped.y;
+
+        const looksLikePistol = indexExtended && (curled >= 1 || dominance > -0.12);
+        const stillPlausible = state.aiming && straight > 0.66 && reachRatio > 1.12;
+        state.aiming = runtime.aimConfidence >= (state.aiming ? 0.28 : 0.42) && (looksLikePistol || stillPlausible);
+
+        const triggerDistance = landmarkDistance(thumbTip, indexTip);
+        const scaledTrigger = triggerDistance / palm;
+        const wasClosed = state.triggerClosed;
+        if (state.triggerClosed) {
+          if ((triggerDistance > TRIGGER_RELEASE && scaledTrigger > 0.86) || !state.aiming) state.triggerClosed = false;
+        } else if (state.aiming && (triggerDistance < TRIGGER_PRESS || scaledTrigger < 0.68)) {
+          state.triggerClosed = true;
+        }
+
+        state.gestureHint = state.triggerClosed ? "TRIGGER" : (state.aiming ? "READY" : "READY");
+        if (!wasClosed && state.triggerClosed && state.aiming) attemptShoot();
+      }
+
+      function isFingerCurled(mcp, pip, tip, wrist, indexReach, palm) {
+        const extension = landmarkDistance(mcp, tip);
+        const pipExtension = landmarkDistance(mcp, pip);
+        const reach = landmarkDistance(wrist, tip);
+        const folded = fingerStraight(mcp, pip, tip) < 0.7 || extension < pipExtension * 1.38;
+        const shorter = reach < indexReach - palm * 0.12 || reach < indexReach * 0.9;
+        const belowPip = tip.y > pip.y + palm * 0.06;
+        return folded || shorter || belowPip;
+      }
+
+      function resolveAssist(baseAim, allow = state.aiming) {
+        const w = window.innerWidth;
+        const h = window.innerHeight;
+        const p = { x: baseAim.x * w, y: baseAim.y * h };
+        const radius = clamp(Math.min(w, h) * 0.13, 76, 136);
+        let best = null;
+        let bestDistance = Infinity;
+        if (state.running && !state.paused && allow) {
+          for (const disc of discs) {
+            const info = discScreenInfo(disc);
+            if (!info.visible) continue;
+            const d = Math.hypot(info.x - p.x, info.y - p.y);
+            if (d < radius && d < bestDistance) {
+              best = { disc, info, distance: d };
+              bestDistance = d;
+            }
+          }
+        }
+        if (!best) return { aim: { x: baseAim.x, y: baseAim.y }, id: null };
+        const closeness = 1 - best.distance / radius;
+        const strength = clamp(0.12 + Math.pow(closeness, 1.45) * 0.48, 0.12, 0.6);
+        const maxSnap = clamp(Math.min(w, h) * 0.07, 36, 68);
+        const pull = Math.min(maxSnap, best.distance * strength);
+        const angle = Math.atan2(best.info.y - p.y, best.info.x - p.x);
+        return {
+          aim: {
+            x: clamp((p.x + Math.cos(angle) * pull) / w, 0, 1),
+            y: clamp((p.y + Math.sin(angle) * pull) / h, 0, 1)
+          },
+          id: best.disc.id
+        };
+      }
+
+      function updateAimAssist(dt) {
+        const smoothing = state.handTracked ? 34 : 6;
+        state.smoothAim.x = damp(state.smoothAim.x, state.rawAim.x, smoothing, dt);
+        state.smoothAim.y = damp(state.smoothAim.y, state.rawAim.y, smoothing, dt);
+        const assisted = resolveAssist(state.smoothAim);
+        state.lockTargetId = assisted.id;
+        state.assistedAim.x = damp(state.assistedAim.x, assisted.aim.x, 34, dt);
+        state.assistedAim.y = damp(state.assistedAim.y, assisted.aim.y, 34, dt);
+      }
+
+      function spawnDisc() {
+        if (!three.scene) return null;
+        const w = Math.max(window.innerWidth, 320);
+        const h = Math.max(window.innerHeight, 240);
+        const m = 95;
+        const edge = Math.floor(Math.random() * 4);
+        let start;
+        if (edge === 0) start = { x: rand(-m, w + m), y: -m };
+        else if (edge === 1) start = { x: w + m, y: rand(-m, h + m) };
+        else if (edge === 2) start = { x: rand(-m, w + m), y: h + m };
+        else start = { x: -m, y: rand(-m, h + m) };
+        const end = { x: rand(w * 0.24, w * 0.76), y: rand(h * 0.2, h * 0.7) };
+        const size = rand(28, 48) * clamp(Math.min(w, h) / 720, 0.82, 1.16);
+        const colors = [0x65f7ff, 0xff4dec, 0x70ff9d, 0xffd56f, 0x9e7bff];
+        const color = colors[Math.floor(Math.random() * colors.length)];
+        const distance = Math.hypot(end.x - start.x, end.y - start.y);
+        const group = createDiscMesh(size, color);
+        group.position.set(start.x, start.y, 0);
+        three.scene.add(group);
+        const disc = {
+          id: `disc-${Date.now()}-${Math.random()}`,
+          group,
+          start,
+          end,
+          size,
+          color,
+          age: 0,
+          duration: clamp(distance / rand(70, 126), 4.2, 8.8),
+          curve: rand(-1, 1) * rand(48, 132),
+          phase: rand(0, Math.PI * 2),
+          spin: rand(-2.2, 2.2),
+          wobble: rand(1.3, 2.9),
+          trail: 0
+        };
+        discs.push(disc);
+        spawnAccent(start.x, start.y, color, 8);
+        return disc;
+      }
+
+      function createDiscMesh(size, color) {
+        const group = new THREE.Group();
+        group.renderOrder = 5;
+        const base = new THREE.Color(color);
+        const fill = new THREE.Mesh(new THREE.CircleGeometry(size * 0.66, 48), material(base, 0.14));
+        const outer = new THREE.Mesh(new THREE.TorusGeometry(size, size * 0.075, 12, 72), material(base, 0.82));
+        const middle = new THREE.Mesh(new THREE.TorusGeometry(size * 0.66, size * 0.052, 10, 64), material(0xeffbff, 0.42));
+        const core = new THREE.Mesh(new THREE.TorusGeometry(size * 0.3, size * 0.075, 10, 48), material(base, 0.92));
+        const lock = new THREE.LineLoop(circleGeometry(size * 1.28, 96), lineMaterial(0x70ff9d, 0));
+        const axisM = lineMaterial(color, 0.55);
+        const axisH = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(-size * 0.78, 0, 0), new THREE.Vector3(size * 0.78, 0, 0)]), axisM);
+        const axisV = new THREE.Line(new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, -size * 0.78, 0), new THREE.Vector3(0, size * 0.78, 0)]), axisM.clone());
+        const satellites = new THREE.Group();
+        for (let i = 0; i < 3; i += 1) {
+          const dot = new THREE.Mesh(new THREE.CircleGeometry(size * 0.065, 10), material(0xeffbff, 0.86));
+          dot.userData.angle = (i / 3) * Math.PI * 2;
+          dot.userData.radius = size * rand(0.78, 1.05);
+          satellites.add(dot);
+        }
+        group.add(fill, outer, middle, core, axisH, axisV, lock, satellites);
+        group.userData = { fill, outer, middle, core, lock, satellites };
+        return group;
+      }
+
+      function updateDiscs(dt, now) {
+        if (!state.running || state.paused) return;
+        for (let i = discs.length - 1; i >= 0; i -= 1) {
+          const disc = discs[i];
+          disc.age += dt;
+          const t = clamp(disc.age / disc.duration, 0, 1);
+          const eased = -(Math.cos(Math.PI * t) - 1) / 2;
+          const bx = lerp(disc.start.x, disc.end.x, eased);
+          const by = lerp(disc.start.y, disc.end.y, eased);
+          const dx = disc.end.x - disc.start.x;
+          const dy = disc.end.y - disc.start.y;
+          const len = Math.max(1, Math.hypot(dx, dy));
+          const nx = -dy / len;
+          const ny = dx / len;
+          const drift = Math.sin(t * Math.PI) * disc.curve + Math.sin(now * 0.0018 * disc.wobble + disc.phase) * 12;
+          disc.group.position.set(bx + nx * drift, by + ny * drift, 0);
+          disc.group.rotation.z += disc.spin * dt;
+          disc.group.scale.setScalar(1 + Math.sin(now * 0.006 + disc.phase) * 0.035);
+          const locked = state.lockTargetId === disc.id;
+          const pulse = 0.5 + Math.sin(now * 0.011) * 0.5;
+          disc.group.userData.lock.material.opacity = locked ? 0.25 + pulse * 0.38 : damp(disc.group.userData.lock.material.opacity, 0, 12, dt);
+          disc.group.userData.lock.scale.setScalar(1 + pulse * 0.08);
+          disc.group.userData.satellites.children.forEach((dot, index) => {
+            const a = dot.userData.angle + now * 0.0026 * (index % 2 ? -1 : 1);
+            dot.position.set(Math.cos(a) * dot.userData.radius, Math.sin(a) * dot.userData.radius, 0);
+          });
+          disc.trail += dt;
+          if (disc.trail > 0.075) {
+            disc.trail = 0;
+            createParticle(disc.group.position.x + rand(-5, 5), disc.group.position.y + rand(-5, 5), rand(-18, 18), rand(-18, 18), rand(2, 5), rand(0.22, 0.42), disc.color, three.geometries.dot, 0.35);
+          }
+          const out = disc.group.position.x < -170 || disc.group.position.x > window.innerWidth + 170 || disc.group.position.y < -170 || disc.group.position.y > window.innerHeight + 170;
+          if (t >= 1 || (t > 0.35 && out)) {
+            state.escaped += 1;
+            removeDisc(disc);
+            discs.splice(i, 1);
+            spawnDisc();
+          }
+        }
+        ensureDiscCount();
+      }
+
+      function ensureDiscCount() {
+        if (!state.running || state.paused || !three.scene) return;
+        while (discs.length < TARGET_DISC_COUNT) spawnDisc();
+        while (discs.length > TARGET_DISC_COUNT) removeDisc(discs.pop());
+      }
+
+      function removeDisc(disc) {
+        if (!disc || !disc.group || !three.scene) return;
+        three.scene.remove(disc.group);
+        disc.group.traverse((node) => {
+          if (node.geometry && !Object.values(three.geometries).includes(node.geometry)) node.geometry.dispose();
+          if (node.material) {
+            if (Array.isArray(node.material)) node.material.forEach((m) => m.dispose());
+            else node.material.dispose();
+          }
+        });
+      }
+
+      function attemptShoot() {
+        const now = performance.now();
+        if (!state.ready || !state.running || state.paused || !state.aiming) return;
+        if (now - state.lastShotTime < SHOT_COOLDOWN_MS) return;
+        state.lastShotTime = now;
+        state.shots += 1;
+        runtime.crosshairKick = 1;
+        runtime.laserFlash = 1;
+        runtime.shake = Math.max(runtime.shake, 2.7);
+        playShotSound();
+
+        const current = state.handTracked ? state.rawAim : state.assistedAim;
+        const shot = resolveAssist(current, state.aiming || state.gestureConfidence > 0.3);
+        state.smoothAim.x = current.x;
+        state.smoothAim.y = current.y;
+        state.assistedAim.x = shot.aim.x;
+        state.assistedAim.y = shot.aim.y;
+        state.lockTargetId = shot.id;
+
+        const aimX = shot.aim.x * window.innerWidth;
+        const aimY = shot.aim.y * window.innerHeight;
+        let hit = null;
+        let hitDistance = Infinity;
+        for (const disc of discs) {
+          const info = discScreenInfo(disc);
+          if (!info.visible) continue;
+          const d = Math.hypot(info.x - aimX, info.y - aimY);
+          if (d <= info.radius && d < hitDistance) {
+            hit = disc;
+            hitDistance = d;
+          }
+        }
+        if (hit) handleHit(hit);
+        else handleMiss();
+      }
+
+      function handleHit(disc) {
+        const pos = disc.group.position.clone();
+        const info = discScreenInfo(disc);
+        state.hits += 1;
+        state.combo += 1;
+        state.bestCombo = Math.max(state.bestCombo, state.combo);
+        state.score += 100 + Math.min(250, Math.max(0, state.combo - 1) * 12);
+        if (state.score > state.bestScore) {
+          state.bestScore = state.score;
+          localStorage.setItem(BEST_SCORE_KEY, String(state.bestScore));
+        }
+        burst(pos, disc.color);
+        spawnFloatingText("HIT +100", info.x, info.y, "hit");
+        if (state.combo > 0 && state.combo % 5 === 0) {
+          spawnFloatingText(`COMBO x${state.combo}`, info.x, info.y - 34, "combo");
+          playComboSound();
+        }
+        playHitSound();
+        runtime.shake = Math.max(runtime.shake, 6.4);
+        runtime.flash = Math.max(runtime.flash, 0.9);
+        const index = discs.indexOf(disc);
+        if (index !== -1) discs.splice(index, 1);
+        removeDisc(disc);
+        spawnDisc();
+        ensureDiscCount();
+      }
+
+      function handleMiss() {
+        state.combo = 0;
+        spawnFloatingText("MISS", state.assistedAim.x * window.innerWidth, state.assistedAim.y * window.innerHeight, "miss");
+        playMissSound();
+        runtime.shake = Math.max(runtime.shake, 1.9);
+      }
+
+      function discScreenInfo(disc) {
+        if (!disc || !disc.group || !three.camera) return { x: 0, y: 0, radius: 0, visible: false };
+        const p = disc.group.position.clone().project(three.camera);
+        const x = (p.x * 0.5 + 0.5) * window.innerWidth;
+        const y = (-p.y * 0.5 + 0.5) * window.innerHeight;
+        return {
+          x,
+          y,
+          radius: disc.size * 1.34,
+          visible: p.z > -1 && p.z < 1 && x > -disc.size * 2 && x < window.innerWidth + disc.size * 2 && y > -disc.size * 2 && y < window.innerHeight + disc.size * 2
+        };
+      }
+
+      function createParticle(x, y, vx, vy, size, life, color, geometry, opacity = 0.86, spin = rand(-6, 6)) {
+        if (!three.scene) return;
+        while (particles.length >= MAX_PARTICLES) removeParticle(0);
+        const mesh = new THREE.Mesh(geometry, material(color, opacity));
+        mesh.position.set(x, y, 0);
+        mesh.scale.setScalar(size);
+        mesh.rotation.z = rand(0, Math.PI * 2);
+        mesh.renderOrder = 7;
+        three.scene.add(mesh);
+        particles.push({ mesh, vx, vy, size, life, age: 0, spin, opacity });
+      }
+
+      function spawnAccent(x, y, color, count) {
+        for (let i = 0; i < count; i += 1) createParticle(x, y, rand(-75, 75), rand(-75, 75), rand(2, 5), rand(0.22, 0.44), color, three.geometries.dot, 0.3);
+      }
+
+      function burst(position, color) {
+        const count = 30;
+        for (let i = 0; i < count; i += 1) {
+          const a = (i / count) * Math.PI * 2 + rand(-0.16, 0.16);
+          const speed = rand(90, 365);
+          createParticle(position.x + rand(-5, 5), position.y + rand(-5, 5), Math.cos(a) * speed, Math.sin(a) * speed, rand(2.5, 8), rand(0.34, 0.72), i % 4 === 0 ? 0xeffbff : color, i % 3 === 0 ? three.geometries.tri : three.geometries.dot, 0.88);
+        }
+      }
+
+      function updateParticles(dt) {
+        for (let i = particles.length - 1; i >= 0; i -= 1) {
+          const p = particles[i];
+          p.age += dt;
+          const t = p.age / p.life;
+          if (t >= 1) {
+            removeParticle(i);
+            continue;
+          }
+          p.mesh.position.x += p.vx * dt;
+          p.mesh.position.y += p.vy * dt;
+          p.vx *= Math.pow(0.02, dt);
+          p.vy *= Math.pow(0.02, dt);
+          p.mesh.rotation.z += p.spin * dt;
+          p.mesh.scale.setScalar(p.size * (1 + t * 0.45));
+          p.mesh.material.opacity = p.opacity * (1 - t);
+        }
+      }
+
+      function removeParticle(index) {
+        const p = particles[index];
+        if (!p) return;
+        if (three.scene) three.scene.remove(p.mesh);
+        if (p.mesh.material) p.mesh.material.dispose();
+        particles.splice(index, 1);
+      }
+
+      function spawnFloatingText(text, x, y, type) {
+        while (texts.length >= MAX_TEXT) texts.shift().element.remove();
+        const el = document.createElement("div");
+        el.className = `float-text ${type}`;
+        el.textContent = text;
+        dom.floating.appendChild(el);
+        texts.push({ element: el, x, y, age: 0, life: type === "combo" ? 1.16 : 0.88, drift: rand(-14, 14), type });
+      }
+
+      function updateTexts(dt) {
+        for (let i = texts.length - 1; i >= 0; i -= 1) {
+          const item = texts[i];
+          item.age += dt;
+          const t = item.age / item.life;
+          if (t >= 1) {
+            item.element.remove();
+            texts.splice(i, 1);
+            continue;
+          }
+          const ease = 1 - Math.pow(1 - t, 3);
+          item.element.style.opacity = String(1 - t);
+          item.element.style.transform = `translate3d(${item.x + item.drift * ease}px, ${item.y - ease * (item.type === "combo" ? 74 : 52)}px, 0) translate(-50%, -50%) scale(${0.92 + Math.sin(t * Math.PI) * 0.28})`;
+        }
+      }
+
+      function updateLaser(dt, now) {
+        if (!three.laserCore) return;
+        const w = window.innerWidth;
+        const h = window.innerHeight;
+        const origin = { x: w * 0.5, y: h * 0.92 };
+        const target = { x: state.assistedAim.x * w, y: state.assistedAim.y * h };
+        const dx = target.x - origin.x;
+        const dy = target.y - origin.y;
+        const len = Math.max(1, Math.hypot(dx, dy));
+        const angle = Math.atan2(dy, dx);
+        const locked = Boolean(state.lockTargetId);
+        const pulse = 0.5 + Math.sin(now * 0.0065) * 0.5;
+        runtime.laserFlash = damp(runtime.laserFlash, 0, 12, dt);
+        positionBeam(three.laserGlow, origin, target, len, angle, locked ? 9 : 6);
+        positionBeam(three.laserCore, origin, target, len, angle, locked ? 2.7 : 1.7);
+        three.laserGlow.material.opacity = (state.aiming ? 0.14 : 0.06) + pulse * 0.05 + (locked ? 0.18 : 0) + runtime.laserFlash * 0.28;
+        three.laserCore.material.opacity = (state.aiming ? 0.48 : 0.2) + pulse * 0.08 + (locked ? 0.25 : 0) + runtime.laserFlash * 0.42;
+        three.laserCore.material.color.setHex(locked ? 0x70ff9d : 0xeffbff);
+        three.laserGlow.material.color.setHex(locked ? 0x70ff9d : 0x65f7ff);
+        three.laserOrigin.position.set(origin.x, origin.y, 0);
+        three.laserOrigin.scale.setScalar(locked ? 25 + pulse * 8 : 18 + pulse * 5);
+        three.laserOrigin.material.opacity = (state.aiming ? 0.18 : 0.08) + runtime.laserFlash * 0.24;
+      }
+
+      function positionBeam(mesh, origin, target, length, angle, width) {
+        mesh.position.set((origin.x + target.x) / 2, (origin.y + target.y) / 2, 0);
+        mesh.rotation.z = angle;
+        mesh.scale.set(length, width, 1);
+      }
+
+      function updateCrosshair(dt, now) {
+        if (!three.crosshair) return;
+        const locked = Boolean(state.lockTargetId);
+        const visible = state.handTracked ? 1 : 0.72;
+        const idle = Math.sin(now * 0.004) * 0.04;
+        runtime.crosshairKick = damp(runtime.crosshairKick, 0, 13, dt);
+        three.crosshair.position.set(state.assistedAim.x * window.innerWidth, state.assistedAim.y * window.innerHeight, 0);
+        three.crosshair.scale.setScalar(1 + idle + runtime.crosshairKick * 0.45 + (locked ? 0.08 : 0));
+        three.crosshair.userData.halo.material.opacity = (locked ? 0.2 : 0.11) * visible + runtime.crosshairKick * 0.08;
+        three.crosshair.userData.shadow.material.opacity = 0.58 * visible;
+        three.crosshair.userData.inner.material.color.setHex(locked ? 0x70ff9d : 0x65f7ff);
+        three.crosshair.userData.inner.material.opacity = (state.aiming ? 0.96 : 0.66) * visible;
+        three.crosshair.userData.outer.material.opacity = (locked ? 0.84 : 0.46) * visible;
+        three.crosshair.userData.lock.material.opacity = locked ? 0.58 + Math.sin(now * 0.012) * 0.2 : damp(three.crosshair.userData.lock.material.opacity, 0, 11, dt);
+        three.crosshair.userData.dot.material.opacity = state.handTracked ? 0.98 : 0.58;
+        three.crosshair.userData.tickBacks.forEach((tick, i) => {
+          tick.material.opacity = 0.62 * visible;
+          tick.rotation.z = tick.userData.base + Math.sin(now * 0.003 + i) * 0.035;
+        });
+        three.crosshair.userData.ticks.forEach((tick, i) => {
+          tick.material.color.setHex(locked ? 0x70ff9d : 0x65f7ff);
+          tick.material.opacity = (state.aiming ? 0.92 : 0.56) * visible;
+          tick.rotation.z = tick.userData.base + Math.sin(now * 0.003 + i) * 0.035;
+        });
+      }
+
+      function updateHud(dt) {
+        const accuracy = state.shots > 0 ? (state.hits / state.shots) * 100 : 100;
+        runtime.displayScore = damp(runtime.displayScore, state.score, 12, dt);
+        runtime.displayAccuracy = damp(runtime.displayAccuracy, accuracy, 12, dt);
+        runtime.displayCombo = damp(runtime.displayCombo, state.combo, 12, dt);
+        runtime.displayBest = damp(runtime.displayBest, state.bestScore, 12, dt);
+        dom.score.textContent = String(Math.round(runtime.displayScore));
+        dom.accuracy.textContent = `${Math.round(runtime.displayAccuracy)}%`;
+        dom.combo.textContent = `x${Math.round(runtime.displayCombo)}`;
+        dom.best.textContent = String(Math.round(runtime.displayBest));
+        dom.shots.textContent = String(state.shots);
+        dom.bestCombo.textContent = `x${state.bestCombo}`;
+        dom.trigger.textContent = state.triggerClosed ? "TRIGGER" : (state.aiming ? "READY" : "READY");
+        dom.trigger.classList.toggle("hot", state.triggerClosed);
+        if (state.ready && state.handTracked) setStatus(state.lockTargetId ? "LOCKED" : "TRACKING HAND");
+        if (state.paused) dom.trigger.textContent = "PAUSED";
+        dom.pause.textContent = state.paused ? "Resume" : "Pause";
+      }
+
+      function updateScreen(dt) {
+        runtime.shake = damp(runtime.shake, 0, 8, dt);
+        runtime.flash = damp(runtime.flash, 0, 10, dt);
+        const s = runtime.shake;
+        dom.stage.style.transform = `translate3d(${rand(-s, s)}px, ${rand(-s, s)}px, 0)`;
+        dom.flash.style.opacity = String(clamp(runtime.flash, 0, 0.55));
+      }
+
+      function resetGameStats() {
+        state.score = 0;
+        state.shots = 0;
+        state.hits = 0;
+        state.escaped = 0;
+        state.combo = 0;
+        state.bestCombo = 0;
+        state.lastShotTime = 0;
+        runtime.displayScore = 0;
+        runtime.displayAccuracy = 100;
+        runtime.displayCombo = 0;
+      }
+
+      function restartGame() {
+        if (!state.ready) return;
+        resetGameStats();
+        clearWorld();
+        state.running = true;
+        state.paused = false;
+        ensureDiscCount();
+      }
+
+      function clearWorld() {
+        if (three.scene) {
+          while (discs.length) removeDisc(discs.pop());
+          while (particles.length) removeParticle(0);
+        } else {
+          discs.length = 0;
+          particles.length = 0;
+        }
+        while (texts.length) texts.pop().element.remove();
+      }
+
+      function togglePause() {
+        if (!state.ready) return;
+        state.paused = !state.paused;
+      }
+
+      function playTone(freq, endFreq, duration, type, gainValue) {
+        if (!audio.enabled || !audio.ctx) return;
+        const now = audio.ctx.currentTime;
+        const osc = audio.ctx.createOscillator();
+        const gain = audio.ctx.createGain();
+        osc.type = type;
+        osc.frequency.setValueAtTime(freq, now);
+        osc.frequency.exponentialRampToValueAtTime(endFreq, now + duration);
+        gain.gain.setValueAtTime(0.0001, now);
+        gain.gain.exponentialRampToValueAtTime(gainValue, now + 0.012);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+        osc.connect(gain).connect(audio.ctx.destination);
+        osc.start(now);
+        osc.stop(now + duration + 0.02);
+      }
+
+      function playShotSound() {
+        playTone(760, 120, 0.12, "sawtooth", 0.13);
+      }
+
+      function playMissSound() {
+        playTone(180, 90, 0.2, "sine", 0.07);
+      }
+
+      function playHitSound() {
+        playTone(260, 520, 0.18, "triangle", 0.1);
+        if (!audio.enabled || !audio.ctx || !audio.noise) return;
+        const now = audio.ctx.currentTime;
+        const source = audio.ctx.createBufferSource();
+        const gain = audio.ctx.createGain();
+        const filter = audio.ctx.createBiquadFilter();
+        source.buffer = audio.noise;
+        filter.type = "highpass";
+        filter.frequency.setValueAtTime(860, now);
+        filter.frequency.exponentialRampToValueAtTime(260, now + 0.18);
+        gain.gain.setValueAtTime(0.0001, now);
+        gain.gain.exponentialRampToValueAtTime(0.16, now + 0.012);
+        gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.2);
+        source.connect(filter).connect(gain).connect(audio.ctx.destination);
+        source.start(now);
+        source.stop(now + 0.22);
+      }
+
+      function playComboSound() {
+        if (!audio.enabled || !audio.ctx) return;
+        [0, 0.045, 0.09].forEach((offset, i) => {
+          const now = audio.ctx.currentTime + offset;
+          const osc = audio.ctx.createOscillator();
+          const gain = audio.ctx.createGain();
+          osc.type = "triangle";
+          osc.frequency.setValueAtTime(440 * Math.pow(1.25, i), now);
+          gain.gain.setValueAtTime(0.0001, now);
+          gain.gain.exponentialRampToValueAtTime(0.06, now + 0.01);
+          gain.gain.exponentialRampToValueAtTime(0.0001, now + 0.09);
+          osc.connect(gain).connect(audio.ctx.destination);
+          osc.start(now);
+          osc.stop(now + 0.1);
+        });
+      }
+
+      dom.start.addEventListener("click", () => {
+        initApp().catch((error) => {
+          console.warn("[Vibe Shooting] Start failed:", error);
+          showFatalError("Initialization Error", "Vibe Shooting could not start. Press Retry to try again.");
+        });
+      });
+      dom.retry.addEventListener("click", () => {
+        initApp().catch((error) => {
+          console.warn("[Vibe Shooting] Retry failed:", error);
+          showFatalError("Initialization Error", "Vibe Shooting could not restart. Check camera permission and retry.");
+        });
+      });
+      dom.pause.addEventListener("click", togglePause);
+      dom.restart.addEventListener("click", restartGame);
+
+      window.addEventListener("unhandledrejection", (event) => {
+        console.warn("[Vibe Shooting] Prevented unhandled rejection:", event.reason);
+        event.preventDefault();
+      });
+
+      window.addEventListener("beforeunload", () => {
+        stopCamera();
+        if (runtime.hands && typeof runtime.hands.close === "function") {
+          const result = runtime.hands.close();
+          if (result && typeof result.catch === "function") result.catch(() => {});
+        }
+      });
+
+      dom.best.textContent = String(state.bestScore);
+      setStatus("MODEL LOADING");
+      showOverlay("landing");
+    })();
+  </script>
+</body>
+</html>
