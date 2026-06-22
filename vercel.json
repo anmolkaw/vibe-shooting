@@ -1,0 +1,15 @@
+{
+  "redirects": [
+    {
+      "source": "/:path*",
+      "has": [
+        {
+          "type": "host",
+          "value": "www.vibeshooting.com"
+        }
+      ],
+      "destination": "https://vibeshooting.com/:path*",
+      "permanent": true
+    }
+  ]
+}

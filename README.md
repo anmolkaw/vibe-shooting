@@ -6,6 +6,8 @@ Public repository: https://github.com/anmolkaw/vibe-shooting
 
 Production deployment: https://vibe-shooting.vercel.app
 
+Custom domain status: `vibeshooting.com` and `www.vibeshooting.com` are attached to the Vercel project, but DNS must be updated at the current DNS provider before they resolve to the game.
+
 ## Features
 
 - Webcam-based AR play with a mirrored camera background
@@ -103,16 +105,28 @@ https://vibe-shooting.vercel.app
 
 The game can be hosted for free, but a `.com` domain must be registered separately through a domain registrar.
 
-To connect the intended production domain later:
+Current custom-domain setup:
 
-1. Register `vibeshooting.com` through a domain registrar.
-2. In Vercel, open the `vibe-shooting` project.
-3. Go to Settings -> Domains -> Add Domain.
-4. Add both `vibeshooting.com` and `www.vibeshooting.com`.
-5. Follow the exact DNS records Vercel provides for your account and registrar.
-6. Set `https://vibeshooting.com` as the canonical domain and redirect `www` to it.
+1. `vibeshooting.com` is added to the Vercel project.
+2. `www.vibeshooting.com` is added to the Vercel project.
+3. `https://vibeshooting.com` is the intended canonical domain.
+4. `www.vibeshooting.com` redirects to the canonical domain through `vercel.json` once DNS points to Vercel.
 
-Do not hardcode DNS records from this README; Vercel will show the current required records when the domain is added.
+Vercel currently reports these DNS actions as required:
+
+```text
+A vibeshooting.com 76.76.21.21
+A www.vibeshooting.com 76.76.21.21
+```
+
+The domain currently uses Cloudflare nameservers, so update these records in Cloudflare or change the domain nameservers to Vercel's intended nameservers:
+
+```text
+ns1.vercel-dns.com
+ns2.vercel-dns.com
+```
+
+Vercel will verify the domain automatically after DNS propagation.
 
 ## MediaPipe Version Lock
 
